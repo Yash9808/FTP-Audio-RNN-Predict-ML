@@ -15,22 +15,18 @@ from email import encoders
 from datetime import datetime
 import streamlit as st
 from pytz import timezone
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# FTP Server details
+HOST = "cph.v4one.co.uk"
+USERNAME = "yash.sharma"
+PASSWORD = "8x]EnG/Z%DXvcjt[%<;S"
 
-# FTP Server details (loaded from environment variables)
-HOST = os.getenv('FTP_HOST')
-USERNAME = os.getenv('FTP_USERNAME')
-PASSWORD = os.getenv('FTP_PASSWORD')
+# AssemblyAI API Key
+aai.settings.api_key = "507f082334f2416d9784aa3829477738"
 
-# AssemblyAI API Key (loaded from environment variables)
-aai.settings.api_key = os.getenv('ASSEMBLYAI_API_KEY')
-
-# Email Settings (loaded from environment variables)
-sender_email = os.getenv('yash.sharma@chartwellprivatehospital.co.uk')
-email_password = os.getenv('EMAIL_PASSWORD')
+# Email Settings
+sender_email = "yash.sharma@chartwellprivatehospital.co.uk"
+email_password = "CWPh-03002"
 receiver_emails = [
     "karuna.p@chartwellprivatehospital.co.uk",
     "anika.misra@guidinglights.co.uk",
