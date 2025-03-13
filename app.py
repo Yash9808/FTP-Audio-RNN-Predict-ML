@@ -8,16 +8,6 @@ from textblob import TextBlob
 import librosa
 import numpy as np
 
-# Manually input FTP credentials (except for the password)
-ftp_host = "cph.v4one.co.uk"
-ftp_user = "yash.sharma"
-
-# Manually input AssemblyAI API Key
-aai_api_key = "your_assemblyai_api_key_here"
-
-# Ask for FTP password input
-ftp_pass = st.text_input("Enter FTP Password", type="password")
-
 # Function to load audio files from FTP
 def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
     try:
@@ -39,9 +29,14 @@ def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
 
 # Function to transcribe audio file using AssemblyAI
 def transcribe_audio_aai(audio_file):
-    # Set the API Key manually
-    aai.settings.api_key = aai_api_key  # Use the key directly
-    
+    # Get the API Key from Streamlit secrets or manual input
+    aai_key = st.text_input("Enter AssemblyAI API Key", type="password")
+    if aai_key:
+        aai.settings.api_key = aai_key
+    else:
+        st.warning("API Key is required")
+        return ""
+
     transcriber = aai.Transcriber()
 
     # If it's a local file, you can directly pass the file path, otherwise pass a URL
@@ -145,11 +140,18 @@ def process_audio_files(ftp_host, ftp_user, ftp_pass, folder):
 # Streamlit UI setup
 st.title("Audio Analysis from FTP")
 
-# Ask the user for FTP password input
+# Ask user for FTP password
+ftp_pass = st.text_input("Enter FTP Password", type="password")
+
+# FTP credentials (hardcoded for security)
+ftp_host = "cph.v4one.co.uk"
+ftp_user = "yash.sharma"
+
+# Handle FTP connection when password is entered
 if ftp_pass:
-    # User input for selecting folder from FTP
     if st.button("Connect to FTP"):
-        directories = get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, "/")
+        # Get directories from FTP server
+        directories = get_ftp_folders(ftp_host, ftp_user, ftp_pass)
         
         if directories:
             folder_path = st.selectbox("Select Folder", directories)
