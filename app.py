@@ -57,16 +57,6 @@ def download_mp3_files(ftp, remote_folder, local_folder):
         print(f"Error: {e}")
         return []
 
-# Function to check if audio is valid
-def check_audio_validity(audio_file):
-    try:
-        audio = AudioSegment.from_file(audio_file)
-        if len(audio.get_array_of_samples()) == 0:
-            return False
-        return True
-    except Exception:
-        return False
-
 # Sentiment Analysis for agent and customer
 def analyze_sentiment(text):
     sentiment_score = TextBlob(text).sentiment.polarity  # Using TextBlob for sentiment polarity score
@@ -153,42 +143,33 @@ def analyze_and_generate_report(remote_folder):
 
         audio_path = os.path.join(local_folder, mp3_file)
 
-        # Convert MP3 to WAV (16kHz, Mono)
-        audio = AudioSegment.from_mp3(audio_path)
-        audio = audio.set_frame_rate(16000).set_channels(1)[:30000]  # 30s limit
-        wav_file = f"{local_folder}/temp_{i}.wav"
-        audio.export(wav_file, format="wav")
+        # Use AssemblyAI directly with MP3 files (no need to convert to WAV)
+        transcript = transcribe_audio(audio_path)
 
-        if check_audio_validity(wav_file):
-            transcriber = aai.Transcriber()
-            transcript = transcriber.transcribe(wav_file)
+        if transcript:
+            print(f"Transcription: {transcript}")
 
-            if transcript.status == aai.TranscriptStatus.completed:
-                text = transcript.text
-                print(f"Transcription: {text}")
+            # Sentiment Analysis for agent and customer
+            agent_text = transcript
+            customer_text = transcript  # Assuming same text for demo
+            agent_sentiment, agent_sentiment_score, apw, anw = analyze_sentiment(agent_text)
+            customer_sentiment, customer_sentiment_score, cpw, cnw = analyze_sentiment(customer_text)
 
-                # Sentiment Analysis for agent and customer
-                agent_text = text
-                customer_text = text  # Assuming same text for demo
-                agent_sentiment, agent_sentiment_score, apw, anw = analyze_sentiment(agent_text)
-                customer_sentiment, customer_sentiment_score, cpw, cnw = analyze_sentiment(customer_text)  
+            agent_tone, agent_tone_score = analyze_tone(agent_text)  # Pass 'text' to 'analyze_tone'
 
-                agent_tone, agent_tone_score = analyze_tone(agent_text)  # Pass 'text' to 'analyze_tone'
+            # Compute Overall Score
+            overall_score = (
+                (0.3 * (agent_sentiment_score + 1) / 2) +
+                (0.3 * (customer_sentiment_score + 1) / 2) +
+                (0.2 * (agent_tone_score + 1) / 2) +
+                (0.2 * (apw - anw + cpw - cnw + 5) / 10)
+            )
+            overall_score = max(0, min(1, overall_score))
 
-                # Compute Overall Score
-                overall_score = (
-                    (0.3 * (agent_sentiment_score + 1) / 2) +
-                    (0.3 * (customer_sentiment_score + 1) / 2) +
-                    (0.2 * (agent_tone_score + 1) / 2) +
-                    (0.2 * (apw - anw + cpw - cnw + 5) / 10)
-                )
-                overall_score = max(0, min(1, overall_score))
-
-                results.append([  # Append results without unnecessary columns
-                    mp3_file, agent_sentiment, customer_sentiment, agent_tone, overall_score,
-                    agent_sentiment_score, customer_sentiment_score, agent_tone_score, apw, anw, cpw, cnw
-                ])
-            os.remove(wav_file)
+            results.append([  # Append results without unnecessary columns
+                mp3_file, agent_sentiment, customer_sentiment, agent_tone, overall_score,
+                agent_sentiment_score, customer_sentiment_score, agent_tone_score, apw, anw, cpw, cnw
+            ])
 
     # Save results to CSV
     df = pd.DataFrame(results, columns=[  # No unnecessary columns, include only what is required for training
