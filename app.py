@@ -8,6 +8,16 @@ from textblob import TextBlob
 import librosa
 import numpy as np
 
+# Manually input FTP credentials (except for the password)
+ftp_host = "cph.v4one.co.uk"
+ftp_user = "yash.sharma"
+
+# Manually input AssemblyAI API Key
+aai_api_key = "your_assemblyai_api_key_here"
+
+# Ask for FTP password input
+ftp_pass = st.text_input("Enter FTP Password", type="password")
+
 # Function to load audio files from FTP
 def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
     try:
@@ -29,8 +39,8 @@ def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
 
 # Function to transcribe audio file using AssemblyAI
 def transcribe_audio_aai(audio_file):
-    # Get the API Key from Streamlit secrets
-    aai.settings.api_key = st.secrets["aai"]["api_key"]  # Use the key from secrets
+    # Set the API Key manually
+    aai.settings.api_key = aai_api_key  # Use the key directly
     
     transcriber = aai.Transcriber()
 
@@ -118,9 +128,7 @@ def process_audio_files(ftp_host, ftp_user, ftp_pass, folder):
                 tone, tone_score = analyze_tone(wav_file)
                 
                 # Save the results
-                results.append([
-                    file, sentiment, sentiment_score, positive_words, negative_words, tone, tone_score
-                ])
+                results.append([file, sentiment, sentiment_score, positive_words, negative_words, tone, tone_score])
             
             # Remove temp files
             os.remove(audio_path)
@@ -128,9 +136,7 @@ def process_audio_files(ftp_host, ftp_user, ftp_pass, folder):
     
     # Create DataFrame and save to CSV
     if results:
-        df = pd.DataFrame(results, columns=[
-            "File", "Sentiment", "Sentiment Score", "Positive Words", "Negative Words", "Tone", "Tone Score"
-        ])
+        df = pd.DataFrame(results, columns=["File", "Sentiment", "Sentiment Score", "Positive Words", "Negative Words", "Tone", "Tone Score"])
         df.to_csv("audio_analysis_results.csv", index=False)
         st.write("Analysis completed. Results saved to `audio_analysis_results.csv`")
     else:
@@ -139,21 +145,20 @@ def process_audio_files(ftp_host, ftp_user, ftp_pass, folder):
 # Streamlit UI setup
 st.title("Audio Analysis from FTP")
 
-# Load FTP credentials and AAI API key from Streamlit secrets
-ftp_host = st.secrets["ftp"]["host"]
-ftp_user = st.secrets["ftp"]["username"]
-ftp_pass = st.secrets["ftp"]["password"]
-
-# User input for selecting folder from FTP
-if st.button("Connect to FTP"):
-    directories = get_ftp_folders(ftp_host, ftp_user, ftp_pass)
-    
-    if directories:
-        folder_path = st.selectbox("Select Folder", directories)
+# Ask the user for FTP password input
+if ftp_pass:
+    # User input for selecting folder from FTP
+    if st.button("Connect to FTP"):
+        directories = get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, "/")
         
-        if folder_path:
-            st.write(f"Processing audio files from folder `{folder_path}`")
-            if st.button("Start Analysis"):
-                process_audio_files(ftp_host, ftp_user, ftp_pass, folder_path)
-    else:
-        st.warning("No directories found on the FTP server.")
+        if directories:
+            folder_path = st.selectbox("Select Folder", directories)
+            
+            if folder_path:
+                st.write(f"Processing audio files from folder `{folder_path}`")
+                if st.button("Start Analysis"):
+                    process_audio_files(ftp_host, ftp_user, ftp_pass, folder_path)
+        else:
+            st.warning("No directories found on the FTP server.")
+else:
+    st.warning("Please enter the FTP password.")
