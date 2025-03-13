@@ -25,6 +25,7 @@ def get_ftp_folders(ftp_host, ftp_user, ftp_pass):
         items = ftp.nlst()
         directories = [item for item in items if is_ftp_directory(ftp, item)]
         ftp.quit()
+        print("Directories found:", directories)  # Debugging line
         return directories
     except Exception as e:
         st.error(f"Error while fetching directories: {e}")
@@ -38,6 +39,7 @@ def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
         ftp.cwd(folder)
         files = ftp.nlst()
         ftp.quit()
+        print("Files found:", files)  # Debugging line
         return files
     except Exception as e:
         st.error(f"Error while fetching files: {e}")
@@ -150,6 +152,7 @@ if ftp_pass and api_key:
             if folder_path:
                 st.write(f"Processing audio files from folder `{folder_path}`")
                 if st.button("Start Analysis"):
+                    st.write("Starting the analysis...")  # Debugging line
                     process_audio_files(ftp_host, ftp_user, ftp_pass, folder_path, api_key)
         else:
             st.warning("No directories found on the FTP server.")
