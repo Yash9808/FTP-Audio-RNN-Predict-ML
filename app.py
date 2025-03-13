@@ -71,30 +71,38 @@ def analyze_tone(audio_file):
 
 # Function to connect to FTP and get folder list
 def get_ftp_folders(ftp_host, ftp_user, ftp_pass):
-    ftp = ftplib.FTP(ftp_host)
-    ftp.login(ftp_user, ftp_pass)
-    folders = []
-    ftp.retrlines("LIST", folders.append)  # List files and directories
-    
-    directories = []
-    for folder in folders:
-        if folder.startswith('d'):
-            directories.append(folder.split()[-1])  # Extract folder names
-    
-    ftp.quit()
-    return directories
+    try:
+        ftp = ftplib.FTP(ftp_host)
+        ftp.login(ftp_user, ftp_pass)
+        folders = []
+        ftp.retrlines("LIST", folders.append)  # List files and directories
+        
+        directories = []
+        for folder in folders:
+            if folder.startswith('d'):
+                directories.append(folder.split()[-1])  # Extract folder names
+        
+        ftp.quit()
+        return directories
+    except ftplib.all_errors as e:
+        st.error(f"FTP connection error: {e}")
+        return []
 
 # Function to connect to FTP and get file list from folder
 def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
-    ftp = ftplib.FTP(ftp_host)
-    ftp.login(ftp_user, ftp_pass)
-    ftp.cwd(folder)
-    
-    files = ftp.nlst()  # List files in the directory
-    mp3_files = [file for file in files if file.endswith(".mp3")]
-    ftp.quit()
-    
-    return mp3_files
+    try:
+        ftp = ftplib.FTP(ftp_host)
+        ftp.login(ftp_user, ftp_pass)
+        ftp.cwd(folder)
+        
+        files = ftp.nlst()  # List files in the directory
+        mp3_files = [file for file in files if file.endswith(".mp3")]
+        ftp.quit()
+        
+        return mp3_files
+    except ftplib.all_errors as e:
+        st.error(f"Error while fetching files: {e}")
+        return []
 
 # Streamlit UI setup
 st.title("Audio File Analysis App")
@@ -228,3 +236,5 @@ if st.button("Connect to FTP"):
                 plt.title('Actual vs Predicted Values (RNN with LSTM)')
                 plt.legend()
                 st.pyplot()
+    else:
+        st.warning("No directories found on the FTP server.")
