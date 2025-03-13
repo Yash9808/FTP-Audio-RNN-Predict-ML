@@ -69,141 +69,161 @@ def analyze_tone(audio_file):
     else:
         return "Frustrated", -0.8
 
-# Function to connect to FTP and get file list
-def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
-    # Connect to FTP server
+# Function to connect to FTP and get folder list
+def get_ftp_folders(ftp_host, ftp_user, ftp_pass):
     ftp = ftplib.FTP(ftp_host)
     ftp.login(ftp_user, ftp_pass)
-    ftp.cwd(folder)  # Change to the folder with audio files
-
-    # List files in the directory
-    files = ftp.nlst()  # Get a list of files in the folder
-    mp3_files = [file for file in files if file.endswith(".mp3")]
+    folders = []
+    ftp.retrlines("LIST", folders.append)  # List files and directories
     
-    # Close FTP connection
+    directories = []
+    for folder in folders:
+        if folder.startswith('d'):
+            directories.append(folder.split()[-1])  # Extract folder names
+    
+    ftp.quit()
+    return directories
+
+# Function to connect to FTP and get file list from folder
+def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
+    ftp = ftplib.FTP(ftp_host)
+    ftp.login(ftp_user, ftp_pass)
+    ftp.cwd(folder)
+    
+    files = ftp.nlst()  # List files in the directory
+    mp3_files = [file for file in files if file.endswith(".mp3")]
     ftp.quit()
     
     return mp3_files
 
 # Streamlit UI setup
 st.title("Audio File Analysis App")
+
+# User input fields for FTP connection
 ftp_host = st.text_input("FTP Host", "ftp.example.com")
 ftp_user = st.text_input("FTP Username", "username")
 ftp_pass = st.text_input("FTP Password", "password", type="password")
-folder_path = st.text_input("Folder Path", "/path/to/folder")
 
-# When user clicks button, run the analysis
-if st.button("Process Audio Files"):
-
-    # Fetch audio files from FTP
-    mp3_files = get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder_path)
+# Get folder list from FTP
+if st.button("Connect to FTP"):
+    directories = get_ftp_folders(ftp_host, ftp_user, ftp_pass)
     
-    # Data storage for analysis
-    results = []
+    # Allow user to select folder from the list of directories
+    folder_path = st.selectbox("Select Folder", directories)
+    
+    if folder_path:
+        st.write(f"Selected folder: {folder_path}")
+        
+        if st.button("Process Audio Files"):
+            # Fetch audio files from selected folder
+            mp3_files = get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder_path)
+            
+            # Data storage for analysis
+            results = []
 
-    for i, mp3_file in enumerate(mp3_files):
-        st.write(f"Processing ({i+1}/{len(mp3_files)}): {mp3_file}")
+            for i, mp3_file in enumerate(mp3_files):
+                st.write(f"Processing ({i+1}/{len(mp3_files)}): {mp3_file}")
 
-        # Download MP3 file from FTP
-        audio_path = f"temp_{i}.mp3"
-        ftp = ftplib.FTP(ftp_host)
-        ftp.login(ftp_user, ftp_pass)
-        with open(audio_path, "wb") as f:
-            ftp.retrbinary(f"RETR {mp3_file}", f.write)
-        ftp.quit()
+                # Download MP3 file from FTP
+                audio_path = f"temp_{i}.mp3"
+                ftp = ftplib.FTP(ftp_host)
+                ftp.login(ftp_user, ftp_pass)
+                with open(audio_path, "wb") as f:
+                    ftp.retrbinary(f"RETR {mp3_file}", f.write)
+                ftp.quit()
 
-        # Convert MP3 to WAV (16kHz, Mono)
-        audio = AudioSegment.from_mp3(audio_path)
-        audio = audio.set_frame_rate(16000).set_channels(1)[:30000]  # 30s limit
-        wav_file = f"temp_{i}.wav"
-        audio.export(wav_file, format="wav")
+                # Convert MP3 to WAV (16kHz, Mono)
+                audio = AudioSegment.from_mp3(audio_path)
+                audio = audio.set_frame_rate(16000).set_channels(1)[:30000]  # 30s limit
+                wav_file = f"temp_{i}.wav"
+                audio.export(wav_file, format="wav")
 
-        if check_audio_validity(wav_file):
-            agent_text, agent_sentiment, agent_sentiment_score, apw, anw = analyze_sentiment(wav_file)
-            customer_text, customer_sentiment, customer_sentiment_score, cpw, cnw = analyze_sentiment(wav_file)  # Assuming same file
-            agent_tone, agent_tone_score = analyze_tone(wav_file)
-        else:
-            agent_text, agent_sentiment, agent_sentiment_score, apw, anw = "", "NU", 0, 0, 0
-            customer_text, customer_sentiment, customer_sentiment_score, cpw, cnw = "", "NU", 0, 0, 0
-            agent_tone, agent_tone_score = "Unknown", 0
+                if check_audio_validity(wav_file):
+                    agent_text, agent_sentiment, agent_sentiment_score, apw, anw = analyze_sentiment(wav_file)
+                    customer_text, customer_sentiment, customer_sentiment_score, cpw, cnw = analyze_sentiment(wav_file)  # Assuming same file
+                    agent_tone, agent_tone_score = analyze_tone(wav_file)
+                else:
+                    agent_text, agent_sentiment, agent_sentiment_score, apw, anw = "", "NU", 0, 0, 0
+                    customer_text, customer_sentiment, customer_sentiment_score, cpw, cnw = "", "NU", 0, 0, 0
+                    agent_tone, agent_tone_score = "Unknown", 0
 
-        # Calculate Overall Call Score (scaled between 0-1)
-        overall_score = (
-            (0.3 * (agent_sentiment_score + 1) / 2) +
-            (0.3 * (customer_sentiment_score + 1) / 2) +
-            (0.2 * (agent_tone_score + 1) / 2) +
-            (0.2 * (apw - anw + cpw - cnw + 5) / 10)
-        )
+                # Calculate Overall Call Score (scaled between 0-1)
+                overall_score = (
+                    (0.3 * (agent_sentiment_score + 1) / 2) +
+                    (0.3 * (customer_sentiment_score + 1) / 2) +
+                    (0.2 * (agent_tone_score + 1) / 2) +
+                    (0.2 * (apw - anw + cpw - cnw + 5) / 10)
+                )
 
-        overall_score = max(0, min(1, overall_score))  # Ensure it stays in [0,1]
+                overall_score = max(0, min(1, overall_score))  # Ensure it stays in [0,1]
 
-        # Save results in list
-        results.append([
-            mp3_file, agent_sentiment, customer_sentiment, agent_tone, overall_score,
-            agent_sentiment_score, customer_sentiment_score, agent_tone_score, apw, anw, cpw, cnw
-        ])
+                # Save results in list
+                results.append([
+                    mp3_file, agent_sentiment, customer_sentiment, agent_tone, overall_score,
+                    agent_sentiment_score, customer_sentiment_score, agent_tone_score, apw, anw, cpw, cnw
+                ])
 
-        os.remove(wav_file)  # Remove temp file
+                os.remove(wav_file)  # Remove temp file
 
-    # Create DataFrame
-    df = pd.DataFrame(results, columns=[
-        "File", "Agent Sentiment", "Customer Sentiment", "Agent Tone", "Overall Score",
-        "Agent Sentiment Score", "Customer Sentiment Score", "Agent Tone Score", "APW", "ANW", "CPW", "CNW"
-    ])
+            # Create DataFrame
+            df = pd.DataFrame(results, columns=[
+                "File", "Agent Sentiment", "Customer Sentiment", "Agent Tone", "Overall Score",
+                "Agent Sentiment Score", "Customer Sentiment Score", "Agent Tone Score", "APW", "ANW", "CPW", "CNW"
+            ])
 
-    # Save to CSV
-    df.to_csv("call_analysis_results.csv", index=False)
-    st.write("Analysis completed. Results saved to `call_analysis_results.csv`")
+            # Save to CSV
+            df.to_csv("call_analysis_results.csv", index=False)
+            st.write("Analysis completed. Results saved to `call_analysis_results.csv`")
 
-    # ML Model
-    # Load data and prepare for ML
-    df = pd.read_csv('call_analysis_results.csv')
-    df = df.drop(columns=['File', 'Agent Tone'])
+            # ML Model and visualization steps (same as in your original code)
+            # ML Model for predictions and visualization
+            df = pd.read_csv('call_analysis_results.csv')
+            df = df.drop(columns=['File', 'Agent Tone'])
 
-    le = LabelEncoder()
-    df['Agent Sentiment'] = le.fit_transform(df['Agent Sentiment'])
-    df['Customer Sentiment'] = le.fit_transform(df['Customer Sentiment'])
+            le = LabelEncoder()
+            df['Agent Sentiment'] = le.fit_transform(df['Agent Sentiment'])
+            df['Customer Sentiment'] = le.fit_transform(df['Customer Sentiment'])
 
-    features = ['Agent Sentiment', 'Customer Sentiment', 'Agent Sentiment Score',
-                'Customer Sentiment Score', 'Agent Tone Score', 'APW', 'ANW', 'CPW', 'CNW']
-    target = 'Overall Score'
+            features = ['Agent Sentiment', 'Customer Sentiment', 'Agent Sentiment Score',
+                        'Customer Sentiment Score', 'Agent Tone Score', 'APW', 'ANW', 'CPW', 'CNW']
+            target = 'Overall Score'
 
-    X = df[features].values
-    y = df[target].values
+            X = df[features].values
+            y = df[target].values
 
-    # Normalize features
-    scaler = MinMaxScaler()
-    X = scaler.fit_transform(X)
+            # Normalize features
+            scaler = MinMaxScaler()
+            X = scaler.fit_transform(X)
 
-    # Reshape for RNN (samples, timesteps, features)
-    X = X.reshape((X.shape[0], 1, X.shape[1]))
+            # Reshape for RNN (samples, timesteps, features)
+            X = X.reshape((X.shape[0], 1, X.shape[1]))
 
-    # Split the data (60% train, 40% test)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=42)
+            # Split the data (60% train, 40% test)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=42)
 
-    # Build RNN model using LSTM
-    model = Sequential([
-        LSTM(50, activation='relu', return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
-        LSTM(50, activation='relu'),
-        Dense(25, activation='relu'),
-        Dense(1)  # Output layer for regression
-    ])
+            # Build RNN model using LSTM
+            model = Sequential([
+                LSTM(50, activation='relu', return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
+                LSTM(50, activation='relu'),
+                Dense(25, activation='relu'),
+                Dense(1)  # Output layer for regression
+            ])
 
-    model.compile(optimizer='adam', loss='mse')
+            model.compile(optimizer='adam', loss='mse')
 
-    # Train model
-    model.fit(X_train, y_train, epochs=50, batch_size=16, validation_data=(X_test, y_test), verbose=1)
+            # Train model
+            model.fit(X_train, y_train, epochs=50, batch_size=16, validation_data=(X_test, y_test), verbose=1)
 
-    # Predict on test data
-    y_pred = model.predict(X_test)
+            # Predict on test data
+            y_pred = model.predict(X_test)
 
-    # Plot actual vs predicted values
-    plt.figure(figsize=(12, 6))
-    plt.plot(np.arange(len(y_test)), y_test, label='Actual Values', marker='o', linestyle='-', color='blue')
-    plt.plot(np.arange(len(y_pred)), y_pred, label='Predicted Values (RNN)', marker='x', linestyle='--', color='red')
+            # Plot actual vs predicted values
+            plt.figure(figsize=(12, 6))
+            plt.plot(np.arange(len(y_test)), y_test, label='Actual Values', marker='o', linestyle='-', color='blue')
+            plt.plot(np.arange(len(y_pred)), y_pred, label='Predicted Values (RNN)', marker='x', linestyle='--', color='red')
 
-    plt.xlabel('Sample Index')
-    plt.ylabel('Overall Score')
-    plt.title('Actual vs Predicted Values (RNN with LSTM)')
-    plt.legend()
-    st.pyplot()
+            plt.xlabel('Sample Index')
+            plt.ylabel('Overall Score')
+            plt.title('Actual vs Predicted Values (RNN with LSTM)')
+            plt.legend()
+            st.pyplot()
