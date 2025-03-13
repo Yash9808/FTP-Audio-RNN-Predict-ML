@@ -8,6 +8,33 @@ from textblob import TextBlob
 import librosa
 import numpy as np
 
+# Function to get directories from FTP
+def get_ftp_folders(ftp_host, ftp_user, ftp_pass):
+    try:
+        # Connect to FTP server
+        ftp = ftplib.FTP(ftp_host)
+        ftp.login(ftp_user, ftp_pass)
+        
+        # List all files and directories in the root
+        files = ftp.nlst()
+        directories = [file for file in files if is_ftp_directory(ftp, file)]
+        
+        ftp.quit()
+        return directories
+    except ftplib.all_errors as e:
+        st.error(f"Error while fetching directories: {e}")
+        return []
+
+# Function to check if the FTP item is a directory
+def is_ftp_directory(ftp, item):
+    try:
+        # Try to change to the directory
+        ftp.cwd(item)
+        ftp.cwd('..')  # Go back to the parent directory
+        return True
+    except:
+        return False
+
 # Function to load audio files from FTP
 def get_audio_files_from_ftp(ftp_host, ftp_user, ftp_pass, folder):
     try:
